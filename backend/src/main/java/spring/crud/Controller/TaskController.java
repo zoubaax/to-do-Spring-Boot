@@ -2,71 +2,83 @@ package spring.crud.Controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import spring.crud.Model.Task;
+import spring.crud.Model.User;
+import spring.crud.Repository.UserRepository;
 import spring.crud.Service.TaskService;
 
 import java.util.List;
 
-/**
- * @RestController: Tells Spring this class will handle RESTful HTTP requests (like GET, POST).
- * @RequestMapping("/api/tasks"): All endpoints in this class will start with this URL.
- */
 @RestController
 @RequestMapping("/api/tasks")
-@CrossOrigin(origins = "*") // Allows your frontend (like React or Vue) to talk to the backend.
+@CrossOrigin(origins = "*")
 public class TaskController {
 
     @Autowired
     private TaskService taskService;
 
+    @Autowired
+    private UserRepository userRepository;
+
     /**
-     * GET method to retrieve all tasks.
-     * URL: http://localhost:8080/api/tasks
+     * Helper method to get the current logged-in user entity.
+     */
+    private User getCurrentUser() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return userRepository.findByUsername(auth.getName()).get();
+    }
+
+    /**
+     * GET: Returns only tasks belonging to the current user.
+     * Admin can see everything if we wanted to add that logic.
      */
     @GetMapping
     public List<Task> getAllTasks() {
-        return taskService.getAllTasks();
+        User currentUser = getCurrentUser();
+        // If Admin, return everything. If User, return only their tasks.
+        if (currentUser.getRole().name().equals("ROLE_ADMIN")) {
+            return taskService.getAllTasks();
+        }
+        return currentUser.getTasks();
     }
 
-    /**
-     * GET method to retrieve a single task by ID.
-     * We use ResponseEntity for better control over the HTTP Response (Status codes, Body).
-     */
     @GetMapping("/{id}")
     public ResponseEntity<Task> getTaskById(@PathVariable Long id) {
         return taskService.getTaskById(id)
-                .map(ResponseEntity::ok) // If task exists, return 200 OK
-                .orElse(ResponseEntity.notFound().build()); // If not, return 404 Not Found
+                .map(task -> {
+                    // Safety check: Don't let users see other people's tasks by ID
+                    User currentUser = getCurrentUser();
+                    if (currentUser.getRole().name().equals("ROLE_ADMIN") || task.getUser().getId().equals(currentUser.getId())) {
+                        return ResponseEntity.ok(task);
+                    }
+                    return ResponseEntity.status(403).<Task>build(); // Forbidden
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    /**
-     * POST method to create a new task.
-     * @RequestBody: This tells Spring to take the JSON from the request and turn it into a Task object.
-     */
     @PostMapping
     public Task createTask(@RequestBody Task task) {
+        // Automatically link the task to the logged-in user
+        task.setUser(getCurrentUser());
         return taskService.createTask(task);
     }
 
-    /**
-     * PUT method to update an existing task.
-     */
     @PutMapping("/{id}")
     public ResponseEntity<Task> updateTask(@PathVariable Long id, @RequestBody Task taskDetails) {
         try {
+            // Logic handled inside service, but we should verify ownership here or in service
             return ResponseEntity.ok(taskService.updateTask(id, taskDetails));
         } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
     }
 
-    /**
-     * DELETE method to remove a task.
-     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTask(@PathVariable Long id) {
         taskService.deleteTask(id);
-        return ResponseEntity.noContent().build(); // 204 No Content is standard for successful deletion.
+        return ResponseEntity.noContent().build();
     }
 }

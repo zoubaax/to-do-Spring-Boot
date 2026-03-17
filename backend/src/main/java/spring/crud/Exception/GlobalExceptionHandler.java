@@ -2,6 +2,7 @@ package spring.crud.Exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
@@ -9,38 +10,36 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * @ControllerAdvice: This class will intercept exceptions across ANY @Controller in your project.
- * It's much better than writing try-catch blocks everywhere!
- */
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    /**
-     * @ExceptionHandler: This method will run if a RuntimeException is thrown anywhere in the app.
-     * It allows you to return a nice JSON response instead of a messy error page.
-     */
+    // BEST PRACTICE: Specific handler for Login Errors
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Object> handleBadCredentials(BadCredentialsException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("message", "Invalid username or password");
+        body.put("status", HttpStatus.UNAUTHORIZED.value());
+
+        return new ResponseEntity<>(body, HttpStatus.UNAUTHORIZED);
+    }
+
+    // Generic RuntimeException handler
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Object> handleRuntimeException(RuntimeException ex) {
-        
-        // This is a simple Map to store our error details.
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
         body.put("message", ex.getMessage());
-        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("status", HttpStatus.BAD_REQUEST.value()); // Changed from 404 to 400
 
-        // We return a 404 Not Found since most RuntimeExceptions in this app will be "Not Found".
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
-    /**
-     * A generic handler for any other type of error (like Database issues).
-     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneralException(Exception ex) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("message", "An unexpected error occurred. Please try again later.");
+        body.put("message", "An expected error occurred: " + ex.getMessage());
         body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
 
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);

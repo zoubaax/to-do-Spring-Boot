@@ -1,13 +1,8 @@
 import apiClient from './axiosConfig';
 
-/**
- * BEST PRACTICE: Service Pattern
- * Separating API calls from UI logic (the React components).
- * This makes the code reusable and easier to test.
- */
-export const TaskService = {
+const taskService = {
   // Fetch all tasks from the backend
-  getTasks: async () => {
+  getAllTasks: async () => {
     const response = await apiClient.get('/tasks');
     return response.data;
   },
@@ -30,3 +25,5 @@ export const TaskService = {
     return response.data;
   }
 };
+
+export default taskService;
