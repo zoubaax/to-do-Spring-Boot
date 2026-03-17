@@ -1,22 +1,26 @@
 package spring.crud;
 
+import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * @SpringBootApplication: This marks the entry point of your Spring Boot app.
- * It combines @Configuration, @EnableAutoConfiguration, and @ComponentScan.
- * This tells Spring to scan the current package and sub-packages for Beans (Controllers, Services, etc.).
  */
 @SpringBootApplication
 public class Run {
 
-    /**
-     * The main method is the standard entry point for Java applications.
-     * SpringApplication.run() starts the entire Spring framework and the embedded server (Tomcat).
-     * @param args Command-line arguments.
-     */
     public static void main(String[] args) {
+        // Load .env file
+        Dotenv dotenv = Dotenv.configure()
+                .ignoreIfMissing() // Don't crash if the file is missing (e.g. in production)
+                .load();
+
+        // Feed .env variables into Spring's system properties
+        dotenv.entries().forEach(entry -> {
+            System.setProperty(entry.getKey(), entry.getValue());
+        });
+
         SpringApplication.run(Run.class, args);
     }
 }

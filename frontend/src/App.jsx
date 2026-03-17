@@ -1,121 +1,134 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { useState, useEffect } from 'react';
+import './App.css';
+import { TaskService } from './api/taskService';
 
+/**
+ * BEST PRACTICE: UI State Management
+ * We use React hooks like useState (for data) and useEffect (to run code on start).
+ */
 function App() {
-  const [count, setCount] = useState(0)
+  const [tasks, setTasks] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [newTask, setNewTask] = useState({ title: '', description: '' });
+
+  // 1. Fetch data from backend when the component loads
+  useEffect(() => {
+    fetchTasks();
+  }, []);
+
+  const fetchTasks = async () => {
+    setIsLoading(true);
+    try {
+      const data = await TaskService.getTasks();
+      setTasks(data);
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 2. Add a new task
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!newTask.title.trim()) return;
+
+    try {
+      const addedTask = await TaskService.createTask({
+        ...newTask,
+        completed: false
+      });
+      setTasks([addedTask, ...tasks]); // Add to list immediately
+      setNewTask({ title: '', description: '' }); // Clear form
+    } catch (error) {
+      console.error("Failed to add task:", error);
+    }
+  };
+
+  // 3. Toggle Complete (Update)
+  const toggleComplete = async (task) => {
+    try {
+      const updatedTask = await TaskService.updateTask(task.id, {
+        ...task,
+        completed: !task.completed
+      });
+      setTasks(tasks.map(t => (t.id === task.id ? updatedTask : t)));
+    } catch (error) {
+      console.error("Failed to update task:", error);
+    }
+  };
+
+  // 4. Delete a task
+  const handleDelete = async (id) => {
+    try {
+      await TaskService.deleteTask(id);
+      setTasks(tasks.filter(t => t.id !== id));
+    } catch (error) {
+      console.error("Failed to delete task:", error);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
+    <div className="app-container">
+      <h1 className="title">Task Nexus</h1>
+
+      {/* Modern Task Form */}
+      <form onSubmit={handleAddTask} className="task-form">
+        <input
+          type="text"
+          placeholder="Task Title"
+          className="input-field"
+          value={newTask.title}
+          onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+          required
+        />
+        <textarea
+          placeholder="Task Description (Optional)"
+          className="input-field"
+          value={newTask.description}
+          onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+        />
+        <button type="submit" className="add-btn">
+          Create Task
         </button>
-      </section>
+      </form>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
+      {/* Task List */}
+      <div className="task-list">
+        {isLoading ? (
+          <div className="loading-spinner">Warping in your tasks...</div>
+        ) : tasks.length === 0 ? (
+          <div className="loading-spinner">No tasks found. Create your first mission!</div>
+        ) : (
+          tasks.map(task => (
+            <div key={task.id} className={`task-card ${task.completed ? 'task-completed' : ''}`}>
+              <div className="task-info">
+                <h3>{task.title}</h3>
+                <p>{task.description}</p>
+              </div>
+              
+              <div className="task-actions">
+                <button 
+                  onClick={() => toggleComplete(task)}
+                  className="action-btn check-btn"
+                  title={task.completed ? "Mark Incomplete" : "Mark Complete"}
                 >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
+                  {task.completed ? '⭕' : '✔️'}
+                </button>
+                <button 
+                  onClick={() => handleDelete(task.id)}
+                  className="action-btn delete-btn"
+                  title="Delete Task"
                 >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+                  🗑️
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
