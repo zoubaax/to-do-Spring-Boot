@@ -8,13 +8,15 @@ import {
   FiRotateCcw, 
   FiClock, 
   FiActivity,
-  FiList
+  FiList,
+  FiAlertCircle
 } from 'react-icons/fi';
 
 const Tasks = () => {
     const [tasks, setTasks] = useState([]);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [priority, setPriority] = useState('MEDIUM');
     const [loading, setLoading] = useState(true);
     const { user } = useAuth();
 
@@ -25,9 +27,11 @@ const Tasks = () => {
     const fetchTasks = async () => {
         try {
             const data = await taskService.getAllTasks();
-            setTasks(data);
+            // BEST PRACTICE: Always ensure the data is an array before setting state
+            setTasks(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error("Error fetching tasks:", error);
+            setTasks([]); // Fallback to empty array on error
         } finally {
             setLoading(false);
         }
@@ -36,9 +40,10 @@ const Tasks = () => {
     const handleAddTask = async (e) => {
         e.preventDefault();
         try {
-            await taskService.createTask({ title, description, completed: false });
+            await taskService.createTask({ title, description, priority, completed: false });
             setTitle('');
             setDescription('');
+            setPriority('MEDIUM');
             fetchTasks();
         } catch (error) {
             alert("Error adding task!");
@@ -63,7 +68,16 @@ const Tasks = () => {
         }
     };
 
-    const completedCount = tasks.filter(t => t.completed).length;
+    const getPriorityColor = (p) => {
+        switch(p) {
+            case 'HIGH': return '#ef4444'; // Red
+            case 'MEDIUM': return '#f59e0b'; // Amber
+            case 'LOW': return '#10b981'; // Green
+            default: return 'var(--primary)';
+        }
+    };
+
+    const completedCount = Array.isArray(tasks) ? tasks.filter(t => t.completed).length : 0;
 
     return (
         <div className="tasks-page-container">
@@ -87,7 +101,7 @@ const Tasks = () => {
                         <div className="stat-info">
                             <span className="stat-value">{completedCount}</span>
                             <span className="stat-label">Completed</span>
-                        </div>Stat
+                        </div>
                     </div>
                 </div>
             </header>
@@ -103,6 +117,17 @@ const Tasks = () => {
                             onChange={(e) => setTitle(e.target.value)}
                             required
                         />
+                    </div>
+                    <div className="priority-select-container">
+                        <select 
+                            className="input-field-modern priority-select"
+                            value={priority}
+                            onChange={(e) => setPriority(e.target.value)}
+                        >
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                        </select>
                     </div>
                     <button className="add-btn-modern" type="submit">
                         <FiPlus /> Add Task
@@ -132,11 +157,20 @@ const Tasks = () => {
                         <div 
                             key={task.id} 
                             className={`task-card-modern glass-morphism animate-slideUp ${task.completed ? 'completed' : ''}`}
-                            style={{ animationDelay: `${index * 0.05}s` }}
+                            style={{ 
+                                animationDelay: `${index * 0.05}s`,
+                                borderLeft: `4px solid ${getPriorityColor(task.priority)}`
+                            }}
                         >
                             <div className="task-card-main">
                                 <div className="task-text">
-                                    <h3>{task.title}</h3>
+                                    <div className="task-title-row">
+                                        <span 
+                                            className="priority-indicator" 
+                                            style={{ backgroundColor: getPriorityColor(task.priority) }}
+                                        ></span>
+                                        <h3>{task.title}</h3>
+                                    </div>
                                     {task.description && <p>{task.description}</p>}
                                 </div>
                                 <div className="task-actions-modern">
@@ -157,9 +191,18 @@ const Tasks = () => {
                                 </div>
                             </div>
                             <div className="task-footer-modern">
-                                <span className="task-tag">
-                                    {user.role === 'ROLE_ADMIN' ? 'Admin View' : 'Personal'}
-                                </span>
+                                <div className="task-badges">
+                                    <span className="task-tag">
+                                        {user.role === 'ROLE_ADMIN' ? 'Admin View' : 'Personal'}
+                                    </span>
+                                    <span 
+                                        className="priority-badge" 
+                                        style={{ color: getPriorityColor(task.priority), backgroundColor: `${getPriorityColor(task.priority)}15` }}
+                                    >
+                                        <FiAlertCircle size={12} />
+                                        {task.priority}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     ))

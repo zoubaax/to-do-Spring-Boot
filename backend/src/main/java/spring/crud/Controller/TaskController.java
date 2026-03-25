@@ -10,11 +10,13 @@ import spring.crud.Model.User;
 import spring.crud.Repository.UserRepository;
 import spring.crud.Service.TaskService;
 
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/tasks")
 @CrossOrigin(origins = "*")
+@Transactional // Ensures the Hibernate session stays open while fetching tasks
 public class TaskController {
 
     @Autowired
