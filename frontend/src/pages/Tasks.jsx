@@ -144,7 +144,7 @@ const Tasks = () => {
         setEditingTask(task);
         setTitle(task.title);
         setDescription(task.description || '');
-        setPriority(task.priority);
+        setPriority(task.priority || 'MEDIUM');
         setShowAddModal(true);
     };
 
@@ -582,7 +582,7 @@ const Tasks = () => {
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Priority Level</label>
                                 <select 
-                                    value={priority}
+                                    value={priority || 'MEDIUM'}
                                     onChange={(e) => setPriority(e.target.value)}
                                     className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-xl text-white focus:outline-none focus:border-blue-500 transition-colors"
                                 >
