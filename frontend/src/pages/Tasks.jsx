@@ -32,6 +32,7 @@ import {
   FiAward
 } from 'react-icons/fi';
 import { format, formatDistanceToNow } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const Tasks = () => {
     const [tasks, setTasks] = useState([]);
@@ -89,8 +90,9 @@ const Tasks = () => {
             resetForm();
             setShowAddModal(false);
             fetchTasks();
+            toast.success('Task created successfully!');
         } catch (error) {
-            alert("Error adding task!");
+            toast.error("Error adding task!");
         }
     };
 
@@ -109,9 +111,10 @@ const Tasks = () => {
             setEditingTask(null);
             setShowAddModal(false);
             fetchTasks();
+            toast.success('Task updated!');
         } catch (error) {
             console.error("Error updating task:", error);
-            alert("Error updating task!");
+            toast.error("Error updating task!");
         }
     };
 
@@ -134,8 +137,10 @@ const Tasks = () => {
             try {
                 await taskService.deleteTask(id);
                 fetchTasks();
+                toast.success('Task deleted');
             } catch (error) {
                 console.error("Error deleting task:", error);
+                toast.error('Failed to delete task');
             }
         }
     };
@@ -355,8 +360,8 @@ const Tasks = () => {
                     
                     {/* Tasks Display */}
                     {loading ? (
-                        <div className="flex items-center justify-center py-20">
-                            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500/30 border-t-blue-500"></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                            {[1, 2, 3, 4, 5, 6].map(i => <TaskSkeleton key={i} />)}
                         </div>
                     ) : filteredTasks.length === 0 ? (
                         <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-16 text-center">
@@ -617,5 +622,24 @@ const Tasks = () => {
         </div>
     );
 };
+
+const TaskSkeleton = () => (
+    <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+        <div className="flex items-start justify-between mb-4">
+            <div className="w-24 h-6 bg-slate-800 rounded-xl animate-pulse"></div>
+            <div className="flex gap-2">
+                <div className="w-8 h-8 bg-slate-800 rounded-lg animate-pulse"></div>
+                <div className="w-8 h-8 bg-slate-800 rounded-lg animate-pulse"></div>
+            </div>
+        </div>
+        <div className="w-3/4 h-6 bg-slate-800 rounded-lg mb-4 animate-pulse"></div>
+        <div className="w-full h-4 bg-slate-800/50 rounded-lg mb-2 animate-pulse"></div>
+        <div className="w-2/3 h-4 bg-slate-800/50 rounded-lg mb-8 animate-pulse"></div>
+        <div className="pt-4 border-t border-slate-800 flex justify-between">
+            <div className="w-20 h-4 bg-slate-800 rounded-lg animate-pulse"></div>
+            <div className="w-24 h-4 bg-slate-800 rounded-lg animate-pulse"></div>
+        </div>
+    </div>
+);
 
 export default Tasks;

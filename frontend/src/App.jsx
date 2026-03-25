@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -22,6 +23,12 @@ const ProtectedRoute = ({ children }) => {
 function App() {
   return (
     <Router>
+      <Toaster 
+        position="top-right" 
+        toastOptions={{
+          style: { background: '#0f172a', color: '#f8fafc', border: '1px border #1e293b' }
+        }} 
+      />
       <div className="font-sans">
         <Routes>
           <Route path="/login" element={<Login />} />
