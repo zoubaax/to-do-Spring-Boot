@@ -7,18 +7,25 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check if user is already logged in (token in localStorage)
+        // SAFETY: Check if user data exists and is not the literal string "undefined"
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-            setUser(JSON.parse(storedUser));
+        if (storedUser && storedUser !== "undefined") {
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch (e) {
+                console.error("Failed to parse user data:", e);
+                localStorage.removeItem('user');
+            }
         }
         setLoading(false);
     }, []);
 
     const login = (userData) => {
-        localStorage.setItem('user', JSON.stringify(userData));
-        localStorage.setItem('token', userData.token);
-        setUser(userData);
+        if (userData) {
+            localStorage.setItem('user', JSON.stringify(userData));
+            localStorage.setItem('token', userData.token);
+            setUser(userData);
+        }
     };
 
     const logout = () => {

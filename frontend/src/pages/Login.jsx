@@ -15,7 +15,7 @@ const Login = () => {
         e.preventDefault();
         try {
             const data = await authService.login(username, password);
-            login(data.user, data.token);
+            login(data);
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Invalid username or password');

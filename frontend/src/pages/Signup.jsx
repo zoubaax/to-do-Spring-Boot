@@ -15,7 +15,7 @@ const Signup = () => {
         setError('');
         setSuccess('');
         try {
-            await authService.register(username, password);
+            await authService.signup(username, password);
             setSuccess('Account created! Opening login...');
             setTimeout(() => navigate('/login'), 2000);
         } catch (err) {
