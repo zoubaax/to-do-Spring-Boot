@@ -1,21 +1,229 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import taskService from '../api/taskService';
 import Sidebar from '../components/Sidebar';
 import {
-    FiPlus, FiTrash2, FiCheckCircle, FiRotateCcw, FiClock, FiActivity,
-    FiList, FiAlertCircle, FiTrendingUp, FiStar, FiSearch, FiEdit2, FiX,
-    FiGrid, FiBarChart2, FiCalendar, FiBox, FiCheck, FiFilter,
-    FiUser, FiArrowUp, FiMoreVertical, FiFolder, FiZap, FiEye
+    FiPlus, FiTrash2, FiCheckCircle, FiClock, FiActivity,
+    FiList, FiSearch, FiEdit2, FiX,
+    FiGrid, FiBox, FiCheck, FiFilter,
+    FiUser, FiArrowUp, FiZap, FiMoreVertical
 } from 'react-icons/fi';
 import {
-    format, isSameDay, startOfMonth, endOfMonth,
-    eachDayOfInterval, startOfWeek, endOfWeek, isToday, isPast
+    format, isPast
 } from 'date-fns';
 import toast from 'react-hot-toast';
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragOverlay,
+    defaultDropAnimationSideEffects,
+    useDroppable
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy,
+    useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Sortable Task Card Component
+const SortableTaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: task.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    const priorityStyle = getPriorityStyle(task.priority);
+    const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'DONE';
+
+    return (
+        <motion.div
+            ref={setNodeRef}
+            style={style}
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileHover={{ y: -2, borderColor: 'rgba(59,130,246,0.3)' }}
+            className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 transition-all group"
+        >
+            <div className="flex items-start gap-2">
+                {/* Drag Handle */}
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className="cursor-grab active:cursor-grabbing p-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                    <FiMoreVertical className="text-slate-500 text-sm" />
+                </div>
+                
+                <div className="flex-1" onClick={() => onEdit(task)}>
+                    <div className="flex items-start justify-between mb-3">
+                        <div className={`px-2 py-0.5 rounded-lg text-xs font-bold ${priorityStyle.bg} ${priorityStyle.color}`}>
+                            {priorityStyle.icon} {task.priority}
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {task.status !== 'DONE' && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const nextStatus = task.status === 'TODO' ? 'IN_PROGRESS' : 'DONE';
+                                        onStatusChange(task, nextStatus);
+                                    }}
+                                    className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-all"
+                                    title="Move to next stage"
+                                >
+                                    <FiArrowUp size={12} />
+                                </button>
+                            )}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDelete(task.id);
+                                }}
+                                className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+                                title="Delete"
+                            >
+                                <FiTrash2 size={12} />
+                            </button>
+                        </div>
+                    </div>
+
+                    <h4 className={`font-semibold text-white mb-2 text-sm ${task.status === 'DONE' ? 'line-through text-slate-400' : ''}`}>
+                        {task.title}
+                    </h4>
+
+                    {task.description && (
+                        <p className="text-xs text-slate-400 line-clamp-2 mb-3">{task.description}</p>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                            {task.dueDate && (
+                                <div className={`flex items-center gap-1 ${isOverdue ? 'text-red-400' : 'text-slate-500'}`}>
+                                    <FiClock size={10} />
+                                    <span className="text-[10px]">{format(new Date(task.dueDate), 'MMM d')}</span>
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-1 text-slate-500">
+                            <FiUser size={10} />
+                            <span className="text-[10px]">{task.assignee?.split(' ')[0] || 'Unassigned'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+// Helper function (needs to be defined before use)
+const getPriorityStyle = (p) => {
+    switch (p) {
+        case 'HIGH':
+            return {
+                color: 'text-red-400',
+                bg: 'bg-red-500/10',
+                border: 'border-red-500/20',
+                icon: '🚨',
+                label: 'Critical'
+            };
+        case 'MEDIUM':
+            return {
+                color: 'text-amber-400',
+                bg: 'bg-amber-500/10',
+                border: 'border-amber-500/20',
+                icon: '⚡',
+                label: 'Important'
+            };
+        case 'LOW':
+            return {
+                color: 'text-emerald-400',
+                bg: 'bg-emerald-500/10',
+                border: 'border-emerald-500/20',
+                icon: '🍃',
+                label: 'Normal'
+            };
+        default:
+            return {
+                color: 'text-blue-400',
+                bg: 'bg-blue-500/10',
+                border: 'border-blue-500/20',
+                icon: '📌',
+                label: 'Default'
+            };
+    }
+};
+
+// Kanban Column Component
+const KanbanColumn = ({ column, tasks, onEdit, onDelete, onStatusChange, isOverlay = false }) => {
+    const { setNodeRef, isOver } = useDroppable({
+        id: column.id,
+    });
+    
+    const columnTasks = tasks.filter(t => t.status === column.id);
+    
+    return (
+        <div className="w-80 shrink-0 h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4 px-1">
+                <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full bg-${column.color}-500 shadow-[0_0_8px_rgba(59,130,246,0.3)]`}></div>
+                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                        {column.title}
+                    </h3>
+                </div>
+                <span className="text-[10px] font-bold bg-slate-800 px-2 py-0.5 rounded-full text-slate-500">
+                    {columnTasks.length}
+                </span>
+            </div>
+            
+            <div 
+                ref={setNodeRef}
+                className={`flex-1 rounded-2xl transition-all duration-200 ${isOver ? 'bg-blue-500/5 ring-2 ring-blue-500/20' : 'bg-transparent'}`}
+            >
+                <SortableContext
+                    items={columnTasks.map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                >
+                    <div className="space-y-3 min-h-[300px] p-1">
+                        {columnTasks.map(task => (
+                            <SortableTaskCard
+                                key={task.id}
+                                task={task}
+                                onEdit={onEdit}
+                                onDelete={onDelete}
+                                onStatusChange={onStatusChange}
+                            />
+                        ))}
+                        {columnTasks.length === 0 && !isOverlay && (
+                            <div className="h-full flex flex-col items-center justify-center py-12 border-2 border-dashed border-slate-800/50 rounded-xl opacity-40">
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-600">Empty Zone</p>
+                            </div>
+                        )}
+                    </div>
+                </SortableContext>
+            </div>
+        </div>
+    );
+};
 
 const Tasks = () => {
     const [tasks, setTasks] = useState([]);
@@ -33,7 +241,15 @@ const Tasks = () => {
     const [viewMode, setViewMode] = useState('kanban');
     const [sortBy, setSortBy] = useState('newest');
     const [showFilters, setShowFilters] = useState(false);
+    const [activeId, setActiveId] = useState(null);
     const { user } = useAuth();
+
+    const sensors = useSensors(
+        useSensor(PointerSensor),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
 
     useEffect(() => {
         fetchTasks();
@@ -148,51 +364,40 @@ const Tasks = () => {
         setEditingTask(null);
     };
 
-    const getPriorityStyle = (p) => {
-        switch (p) {
-            case 'HIGH':
-                return {
-                    color: 'text-red-400',
-                    bg: 'bg-red-500/10',
-                    border: 'border-red-500/20',
-                    icon: '🚨',
-                    label: 'Critical'
-                };
-            case 'MEDIUM':
-                return {
-                    color: 'text-amber-400',
-                    bg: 'bg-amber-500/10',
-                    border: 'border-amber-500/20',
-                    icon: '⚡',
-                    label: 'Important'
-                };
-            case 'LOW':
-                return {
-                    color: 'text-emerald-400',
-                    bg: 'bg-emerald-500/10',
-                    border: 'border-emerald-500/20',
-                    icon: '🍃',
-                    label: 'Normal'
-                };
-            default:
-                return {
-                    color: 'text-blue-400',
-                    bg: 'bg-blue-500/10',
-                    border: 'border-blue-500/20',
-                    icon: '📌',
-                    label: 'Default'
-                };
+    const handleDragEnd = useCallback(async (event) => {
+        const { active, over } = event;
+        setActiveId(null);
+
+        if (!over) return;
+
+        const activeTask = tasks.find(t => t.id === active.id);
+        if (!activeTask) return;
+
+        // 1. Drop on a column background directly
+        const validColumns = ['TODO', 'IN_PROGRESS', 'DONE'];
+        if (validColumns.includes(over.id)) {
+            if (activeTask.status !== over.id) {
+                await updateTaskStatus(activeTask, over.id);
+            }
+            return;
         }
+
+        // 2. Drop on another task (over.id is a Task ID)
+        const overTask = tasks.find(t => t.id === over.id);
+        if (overTask && activeTask.status !== overTask.status) {
+            await updateTaskStatus(activeTask, overTask.status);
+        }
+    }, [tasks]);
+
+    const handleDragStart = (event) => {
+        setActiveId(event.active.id);
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'TODO': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-            case 'IN_PROGRESS': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-            case 'DONE': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-            default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
-        }
-    };
+    const columns = [
+        { id: 'TODO', title: 'TO DO', icon: FiClock, color: 'blue' },
+        { id: 'IN_PROGRESS', title: 'IN PROGRESS', icon: FiActivity, color: 'amber' },
+        { id: 'DONE', title: 'DONE', icon: FiCheckCircle, color: 'emerald' }
+    ];
 
     const filteredTasks = useMemo(() => {
         let filtered = tasks.filter(task => {
@@ -230,7 +435,9 @@ const Tasks = () => {
         completionRate: tasks.length === 0 ? 0 : Math.round((tasks.filter(t => t.status === 'DONE').length / tasks.length) * 100)
     };
 
-    // Task Card Component
+    const activeTask = activeId ? tasks.find(t => t.id === activeId) : null;
+
+    // Regular Task Card for non-drag contexts
     const TaskCard = ({ task, onEdit, onDelete, onStatusChange }) => {
         const priorityStyle = getPriorityStyle(task.priority);
         const isOverdue = task.dueDate && isPast(new Date(task.dueDate)) && task.status !== 'DONE';
@@ -301,51 +508,59 @@ const Tasks = () => {
         );
     };
 
-    // Kanban Board Component
+    // Kanban Board with Drag and Drop
     const KanbanBoard = () => {
-        const columns = [
-            { id: 'TODO', title: 'TO DO', icon: FiClock, color: 'blue', bg: 'bg-blue-500/10' },
-            { id: 'IN_PROGRESS', title: 'IN PROGRESS', icon: FiActivity, color: 'amber', bg: 'bg-amber-500/10' },
-            { id: 'DONE', title: 'DONE', icon: FiCheckCircle, color: 'emerald', bg: 'bg-emerald-500/10' }
-        ];
-
         return (
-            <div className="flex gap-5 overflow-x-auto pb-6" style={{ minHeight: 'calc(100vh - 380px)' }}>
-                {columns.map(column => {
-                    const columnTasks = filteredTasks.filter(t => t.status === column.id);
-                    return (
-                        <div key={column.id} className="w-80 shrink-0">
-                            <div className="flex items-center justify-between mb-4 px-1">
-                                <div className="flex items-center gap-2">
-                                    <div className={`w-2 h-2 rounded-full bg-${column.color}-500`}></div>
-                                    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                        {column.title}
-                                    </h3>
+            <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+            >
+                <div className="flex gap-5 overflow-x-auto pb-6" style={{ minHeight: 'calc(100vh - 380px)' }}>
+                    {columns.map(column => (
+                        <SortableContext
+                            key={column.id}
+                            items={filteredTasks.filter(t => t.status === column.id).map(t => t.id)}
+                            strategy={verticalListSortingStrategy}
+                        >
+                            <KanbanColumn
+                                column={column}
+                                tasks={filteredTasks}
+                                onEdit={openEditModal}
+                                onDelete={deleteTask}
+                                onStatusChange={updateTaskStatus}
+                            />
+                        </SortableContext>
+                    ))}
+                </div>
+                
+                <DragOverlay
+                    dropAnimation={{
+                        sideEffects: defaultDropAnimationSideEffects({
+                            styles: {
+                                active: {
+                                    opacity: '0.4',
+                                },
+                            },
+                        }),
+                    }}
+                >
+                    {activeTask ? (
+                        <div className="bg-slate-900/90 border border-blue-500 rounded-xl p-4 shadow-2xl w-80">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`px-2 py-0.5 rounded-lg text-xs font-bold ${getPriorityStyle(activeTask.priority).bg} ${getPriorityStyle(activeTask.priority).color}`}>
+                                    {getPriorityStyle(activeTask.priority).icon} {activeTask.priority}
                                 </div>
-                                <span className="text-xs font-mono bg-slate-800 px-2 py-0.5 rounded-full text-slate-400">
-                                    {columnTasks.length}
-                                </span>
                             </div>
-                            <div className="space-y-3">
-                                {columnTasks.map(task => (
-                                    <TaskCard 
-                                        key={task.id} 
-                                        task={task} 
-                                        onEdit={openEditModal} 
-                                        onDelete={deleteTask} 
-                                        onStatusChange={updateTaskStatus} 
-                                    />
-                                ))}
-                                {columnTasks.length === 0 && (
-                                    <div className="border-2 border-dashed border-slate-800 rounded-xl p-6 text-center">
-                                        <p className="text-xs text-slate-600">No tasks</p>
-                                    </div>
-                                )}
-                            </div>
+                            <h4 className="font-semibold text-white mb-2 text-sm">{activeTask.title}</h4>
+                            {activeTask.description && (
+                                <p className="text-xs text-slate-400 line-clamp-2">{activeTask.description}</p>
+                            )}
                         </div>
-                    );
-                })}
-            </div>
+                    ) : null}
+                </DragOverlay>
+            </DndContext>
         );
     };
 
@@ -418,7 +633,7 @@ const Tasks = () => {
                                                 className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-all"
                                                 title={task.status === 'DONE' ? 'Completed' : 'Mark Progress'}
                                             >
-                                                {task.status === 'DONE' ? <FiCheck size={14} /> : <FiArrowUp size={14} />}
+                                                <FiArrowUp size={14} />
                                             </button>
                                             <button
                                                 onClick={(e) => {
@@ -450,10 +665,10 @@ const Tasks = () => {
                     {/* Header */}
                     <div className="mb-8">
                         <h1 className="text-2xl font-bold text-white">Tasks Center</h1>
-                        <p className="text-slate-400 text-sm mt-1">Manage and track your workflow</p>
+                        <p className="text-slate-400 text-sm mt-1">Drag and drop tasks between columns</p>
                     </div>
 
-                    {/* Stats Cards - 5 columns as in image */}
+                    {/* Stats Cards */}
                     <div className="grid grid-cols-5 gap-4 mb-8">
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 text-center">
                             <p className="text-xs text-slate-400 mb-1">Total Tasks</p>
